@@ -51,7 +51,7 @@ class UE:
         prior: Priority of UE in the current RBG assignment
     """
     state_var = {
-        'scalar': ['buffer', 'rsrp', 'avg_snr', 'avg_thp'],
+        'scalar': ['buffer', 'rsrp', 'avg_thp', 'avg_cqi', 'sched_rbg_num'],
         # 'scalar': ['cqi', 'mcs', 'se', 'prior', 'sched_rbg'],
         # 'vector': ['cqi', 'se', 'prior', 'sched_rbg'],
         'vector': [],
@@ -62,6 +62,8 @@ class UE:
         'rsrp': (-120, -90),
         'avg_snr': (1, 31),
         'avg_thp': (0, BANDWIDTH * 0.9 * TTI * np.log2(1+29**2)),
+        'avg_cqi': (1, 29),
+        'sched_rbg_num': (0, RBG_NUM),
         'cqi': (1, 29),
         'mcs': (1, 29),
         'se': tuple(map(lambda x: np.log2(1+x**2), (1, 29))),
@@ -90,6 +92,14 @@ class UE:
     def tti_end(self):
         " the attributes that needs re-initialization every tti "
         self.sched_rbg.fill(0)  # rbg assigned == 1, otherwise 0
+
+    @property
+    def avg_cqi(self):
+        return (self.mcs*self.sched_rbg).mean()
+
+    @property
+    def sched_rbg_num(self):
+        return self.sched_rbg.sum()
 
     def __repr__(self):
         return f"<UE: {self.ID} arrive: {self.arrive}>"
@@ -157,6 +167,8 @@ class Airview(gym.Env):
             low=0., high=1., shape=(RBG_NUM, UE.state_dim))
         self.reward_range = (0, BANDWIDTH*0.9*UE.attr_range['se'][1]*TTI)
 
+        self.sched_ue_count = OrderedCounter()
+
     def _reset(self):
         " reset attributes "
         self.ues = []
@@ -171,7 +183,9 @@ class Airview(gym.Env):
         while len(self.ues) == 0:
             self._run()
         self._run()
-        self.state = np.tile(self.ues[0].state, (RBG_NUM, 1))
+        # self.state = np.tile(self.ues[0].state, (RBG_NUM, 1))
+        self.state = np.expand_dims(self.ues[0].state, 0)
+        self.sched_ue_count[self.ues[0]] = self.ues[0].sched_rbg_num
         return self.state
 
     def step(self, action):
@@ -186,14 +200,11 @@ class Airview(gym.Env):
             done (bool): whether the episode has ended
             info (dict): extra informaction
         """
-        self._run()
-        seen = OrderedCounter()
+
         reward = 0
+        total = 0
         is_acks = []
-        for sched_mcs, ue in zip(action, self.select_ue):
-            if ue not in seen:
-                ue.send_num += 1
-            seen[ue] += 1
+        for sched_mcs, ue in zip(action, self.sched_ue_count.keys()):
             # ue.sched_mcs.append((self.sim_time, sched_mcs))
             # reward
             is_ack = self._is_ack(ue, sched_mcs)
@@ -202,13 +213,21 @@ class Airview(gym.Env):
             rbg_se = np.log2(1 + sched_mcs**2)
             # tbs == transmission block size
             rbg_tbs = int(BANDWIDTH * 0.9 *
-                          1.0 / RBG_NUM * rbg_se * TTI)
-                        #   ue.sched_rbg.sum() / RBG_NUM * rbg_se * TTI)
-            ue.buffer = max(0, ue.buffer - rbg_tbs)
+                          self.sched_ue_count[ue] / RBG_NUM * rbg_se * TTI)
             ue.avg_thp = 0.01*is_ack*rbg_tbs + (1-0.01)*ue.avg_thp
-            reward += is_ack * rbg_tbs
-        self.state = np.vstack([ue.state for ue in self.select_ue])
-        return self.state, reward, self.done, {'success': np.sum(is_acks)}
+            reward += min(ue.buffer, is_ack * rbg_tbs)
+            total += min(ue.buffer, rbg_tbs)
+            ue.buffer = max(0, ue.buffer - rbg_tbs)
+        self._run()
+        self.sched_ue_count = self._sched_ue_count()
+        self.state = np.vstack([ue.state for ue in self.sched_ue_count.keys()])
+        return self.state, reward, self.done, {'total': total}
+
+    def _sched_ue_count(self):
+        count = OrderedCounter()
+        for ue in self.select_ue:
+            count[ue] += 1
+        return count
 
     @property
     def done(self):
@@ -320,9 +339,11 @@ class Policy:
     def learn(self, *args):
         pass
 
+
 class Policy2:
     def decide(self, ues):
         return [ue.mcs[i] for i, ue in enumerate(ues)]
+
 
 class OrderedCounter(OrderedDict, Counter):
     pass
