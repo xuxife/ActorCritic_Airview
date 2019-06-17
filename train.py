@@ -117,9 +117,7 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
             if replay is not None:
                 replay.push((state, action, reward, done, next_state))
             else:
-                advantage = reward - value
-                actor_loss += -(log_prob*advantage.detach()).mean()
-                critic_loss += advantage.pow(2).mean()
+                "单次更新 DQN"
 
             state = next_state
             if frame_idx % 1000 == 0:
@@ -127,12 +125,11 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
 
         if replay is not None:
             if len(replay) > replay_size:
-                actor_loss, critic_loss, entropy = replay_loss(
-                    model, optimizer, *replay.sample(replay_size))
+                "通过 ReplayBuffer batch更新DQN"
             else:
                 continue
 
-        loss = actor_loss + 0.5*critic_loss - 0.01 * entropy
+        # loss = actor_loss + 0.5*critic_loss - 0.01 * entropy
 
         optimizer.zero_grad()
         loss.backward()
