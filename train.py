@@ -83,7 +83,7 @@ def trainAC(env, model, optimizer, max_frames=50000, num_steps=5, replay=None, r
     return average_rewards, success_rate
 
 
-def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, replay=None, replay_size=20):
+def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, replay=None, replay_size=128):
     frame_idx = 0
     total_reward = 0
     average_rewards = []
@@ -92,21 +92,17 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
     state = env.reset()
     state = torch.FloatTensor(state)
     while frame_idx < max_frames:
-        log_probs = []
-        values = []
         rewards = []
-        masks = []
-        actor_loss = 0
-        critic_loss = 0
-        entropy = 0
         for _ in range(num_steps):
             frame_idx += 1
             value = model(state)
             if np.random.uniform() < epsilon:
                 action = value.argmax().unsqueeze(0)
+                true_value = value.max()
             else:
                 action = np.random.uniform(
                     size=value.shape[0]) * value.shape[-1]
+                true_value = value[0][action]
 
             next_state, reward, done, info = env.step(action)
             next_state = torch.FloatTensor(next_state)
@@ -115,28 +111,29 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
             total_deliver += info['total']
             success_rate.append(total_reward/total_deliver)
             if replay is not None:
-                replay.push((state, action, reward, done, next_state))
+                replay.push((state, action, true_value, reward, done, next_state))
             else:
-                advantage = reward - value
-                actor_loss += -(log_prob*advantage.detach()).mean()
-                critic_loss += advantage.pow(2).mean()
+                pass # TODO
 
             state = next_state
             if frame_idx % 1000 == 0:
                 print(average_rewards[-1])
 
         if replay is not None:
-            if len(replay) > replay_size:
-                actor_loss, critic_loss, entropy = replay_loss(
-                    model, optimizer, *replay.sample(replay_size))
+            if replay.__len__ == replay.capacity:
+            # if len(replay) > replay_size:
+                batch = replay.sample(replay_size)
+                loss = sum([(t_v-r)**2 for (_,_,t_v,r,_,_) in batch])
+                # print(loss)
+                loss = torch.tensor(loss,requires_grad=True)
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
             else:
                 continue
 
-        loss = actor_loss + 0.5*critic_loss - 0.01 * entropy
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
 
         if done:
             state = env.reset()
@@ -203,3 +200,15 @@ def replay_loss(model, optimizer, state, action, reward, done, next_state):
         actor_loss += -(log_prob*advantage.detach()).mean()
         critic_loss += advantage.pow(2).mean()
     return actor_loss, critic_loss, entropy
+
+# train experiment
+env = Airview()
+model = DQN(5,29)
+opt = torch.optim.Adam(model.parameters())
+replay = ReplayBuffer(1000)
+average_rewards, success_rate = trainDQN(env,model,opt,replay=replay,max_frames=100000)
+
+plt.plot(average_rewards)
+plt.xlabel('train steps')
+plt.ylabel('average reward')
+plt.show()
