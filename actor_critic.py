@@ -1,6 +1,7 @@
 import math
 import random
 import numpy as np
+import gym
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -41,6 +42,50 @@ class ActorCritic(nn.Module):
         value = self.critic(share)
         prob = self.actor(share)
         return prob, value
+
+
+class NormalAC(ActorCritic):
+    pass
+
+
+class NormalizedActions(gym.ActionWrapper):
+    def _action(self, action):
+        low = self.action_space.low
+        high = self.action_space.high
+
+        action = low + (action + 1.0) * 0.5 * (high - low)
+        action = np.clip(action, low, high)
+
+        return action
+
+    def _reverse_action(self, action):
+        low = self.action_space.low
+        high = self.action_space.high
+
+        action = 2 * (action - low) / (high - low) - 1
+        action = np.clip(action, low, high)
+
+        return action
+
+
+class ReplayBuffer:
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.buffer = []
+        self.position = 0
+
+    def push(self, data: tuple):
+        if len(self.buffer) < self.capacity:
+            self.buffer.append(None)
+        self.buffer[self.position] = data
+        self.position = (self.position + 1) % self.capacity
+
+    def sample(self, batch_size):
+        batch = random.sample(self.buffer, batch_size)
+        return zip(*batch)
+
+    def __len__(self):
+        return len(self.buffer)
 
 
 def compute_returns(next_value, rewards, masks, gamma=0.9):
