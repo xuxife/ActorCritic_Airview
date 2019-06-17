@@ -19,7 +19,7 @@ class ActorCritic(nn.Module):
 
         hidden_units['critic'] = hidden_units['share'][-1:] + \
             hidden_units['critic'] + [1, ]
-        critic = [self.share, ]
+        critic = []
         for i, critic_layer in enumerate(hidden_units['critic'][1:]):
             if i > 0:
                 critic.append(nn.ReLU())
@@ -27,17 +27,19 @@ class ActorCritic(nn.Module):
         self.critic = nn.Sequential(*critic)
 
         hidden_units['actor'] = hidden_units['share'][-1:] + \
-            hidden_units['share'] + [num_outputs, ]
-        actor = [self.share, ]
+            hidden_units['actor'] + [num_outputs, ]
+        actor = []
         for i, actor_layer in enumerate(hidden_units['actor'][1:]):
             if i > 0:
                 actor.append(nn.ReLU())
             actor.append(nn.Linear(hidden_units['actor'][i], actor_layer))
+        actor.append(nn.Softmax(dim=-1))
         self.actor = nn.Sequential(*actor)
 
     def forward(self, x):
-        value = self.critic(x)
-        prob = self.actor(x)
+        share = self.share(x)
+        value = self.critic(share)
+        prob = self.actor(share)
         return prob, value
 
 
