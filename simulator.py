@@ -334,7 +334,7 @@ class Policy:
     " default policy (taking floor after mean) "
 
     def decide(self, ues):
-        return [np.floor(np.sum(ue.mcs*ue.sched_rbg)/ue.sched_rbg.sum()) for ue in ues]
+        return np.array([np.floor(np.sum(ue.mcs*ue.sched_rbg)/ue.sched_rbg.sum()) for ue in ues])
 
     def learn(self, *args):
         pass
