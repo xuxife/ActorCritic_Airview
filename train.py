@@ -83,7 +83,7 @@ def trainAC(env, model, optimizer, max_frames=50000, num_steps=5, replay=None, r
     return average_rewards, success_rate
 
 
-def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, replay=None, replay_size=128):
+def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, replay=None, replay_size=20):
     frame_idx = 0
     total_reward = 0
     average_rewards = []
@@ -91,45 +91,59 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
     success_rate = []
     state = env.reset()
     state = torch.FloatTensor(state)
+    plt.ion()
     while frame_idx < max_frames:
-        rewards = []
         for _ in range(num_steps):
             frame_idx += 1
             value = model(state)
             if np.random.uniform() < epsilon:
                 action = value.argmax().unsqueeze(0)
-                true_value = value.max()
+                
             else:
-                action = np.random.uniform(
-                    size=value.shape[0]) * value.shape[-1]
-                true_value = value[0][action]
+                action = torch.randint(0,value.shape[1],(1,))
 
             next_state, reward, done, info = env.step(action)
             next_state = torch.FloatTensor(next_state)
             total_reward += reward
             average_rewards.append(total_reward / frame_idx)
             total_deliver += info['total']
-            success_rate.append(total_reward/total_deliver)
+            success_rate.append(total_reward/total_deliver) # potential zero-deliver
             if replay is not None:
-                replay.push((state, action, true_value, reward, done, next_state))
+                replay.push((state, action, reward, done, next_state))
             else:
                 pass # TODO
 
             state = next_state
             if frame_idx % 1000 == 0:
                 print(average_rewards[-1])
+                plt.clf()
+                plt.plot(average_rewards)
+                plt.pause(1.5) # for plotting the figure
+
+            if frame_idx % 10000 == 0 and frame_idx > 30000:
+                print('saving model')
+                torch.save(model.state_dict(), "DQN_model.pt")
 
         if replay is not None:
-            if replay.__len__ == replay.capacity:
+            if len(replay) == replay.capacity:
             # if len(replay) > replay_size:
-                batch = replay.sample(replay_size)
-                loss = sum([(t_v-r)**2 for (_,_,t_v,r,_,_) in batch])
-                # print(loss)
-                loss = torch.tensor(loss,requires_grad=True)
+                try:
+                    batch = list(replay.sample(replay_size))
+                    batch_state = torch.cat(batch[0]).view(replay_size,5) 
+                    batch_action = torch.LongTensor(batch[1]).unsqueeze(dim=1)
+                    batch_reward = torch.FloatTensor(batch[2])
 
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+                    q_eval = model(batch_state).gather(1,batch_action)
+                    loss_func = nn.MSELoss()
+                    loss = loss_func(q_eval,batch_reward)
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+                except Exception as e:
+                    print(e) # reshape bug for batch state to be fixed
+                    pass
 
             else:
                 continue
@@ -206,9 +220,5 @@ env = Airview()
 model = DQN(5,29)
 opt = torch.optim.Adam(model.parameters())
 replay = ReplayBuffer(1000)
-average_rewards, success_rate = trainDQN(env,model,opt,replay=replay,max_frames=100000)
 
-plt.plot(average_rewards)
-plt.xlabel('train steps')
-plt.ylabel('average reward')
-plt.show()
+average_rewards, success_rate = trainDQN(env,model,opt,replay=replay,max_frames=100000,replay_size=128)
