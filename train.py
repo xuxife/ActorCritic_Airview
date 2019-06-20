@@ -216,7 +216,7 @@ def replay_loss(model, optimizer, state, action, reward, done, next_state):
     return actor_loss, critic_loss, entropy
 
 # train experiment
-env = Airview()
+env = Airview(ue_arrival_rate=0.05)
 model = ActorCritic(5,29)
 # model = DQN(5,29)
 # model = Policy()
@@ -224,7 +224,7 @@ opt = torch.optim.Adam(model.parameters())
 replay = ReplayBuffer(1000)
 average_rewards, success_rate = trainAC(env,model,opt,replay=replay)
 
-plt.plot(average_rewards)
+plt.plot(average_rewards[5000:])
 plt.title("Actor_critic",fontsize=15)
 plt.xlabel("Steps",fontsize=10)
 plt.ylabel("Average_rewards",fontsize=10)
