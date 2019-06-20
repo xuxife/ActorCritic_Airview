@@ -224,7 +224,14 @@ opt = torch.optim.Adam(model.parameters())
 replay = ReplayBuffer(1000)
 average_rewards, success_rate = trainAC(env,model,opt,replay=replay)
 
-torch.save(model.state_dict(),"/models/AC.pt")
+plt.plot(average_rewards)
+plt.title("Actor_critic",fontsize=15)
+plt.xlabel("Steps",fontsize=10)
+plt.ylabel("Average_rewards",fontsize=10)
+plt.savefig("AC_performance.png")
+
+
+torch.save(model.state_dict(),"AC.pt")
 
 
 
