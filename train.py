@@ -51,7 +51,7 @@ def trainAC(env, model, optimizer, max_frames=50000, num_steps=5, replay=None, r
             total_reward += reward
             average_rewards.append(total_reward / frame_idx)
             total_deliver += info['total']
-            success_rate.append(total_reward/total_deliver)
+            success_rate.append(total_reward/total_deliver if total_deliver > 0 else 0)
             if replay is not None:
                 replay.push((state, action, reward, done, next_state))
             else:
@@ -108,7 +108,7 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
             total_reward += reward
             average_rewards.append(total_reward / frame_idx)
             total_deliver += info['total']
-            success_rate.append(total_reward/total_deliver) # potential zero-deliver
+            success_rate.append(total_reward/total_deliver if total_deliver > 0 else 0)
             if replay is not None:
                 replay.push((state, action, reward, done, next_state))
             else:
