@@ -224,7 +224,7 @@ opt = torch.optim.Adam(model.parameters())
 replay = ReplayBuffer(1000)
 average_rewards, success_rate = trainAC(env,model,opt,replay=replay)
 
-torch.save(model.state_dict(),"./models/AC.pt")
+torch.save(model.state_dict(),"/models/AC.pt")
 
 
 

@@ -17,7 +17,7 @@ from gym import spaces
 BANDWIDTH = 1e7
 RBG_NUM = 17
 TTI = 0.001
-UE_ARRIVAL_RATE = 0.5  # uniform(0, 1) < TTI / RATE
+UE_ARRIVAL_RATE = 0.05  # uniform(0, 1) < TTI / RATE
 EPISODE_LENGTH = 2  # the maximum simulation time of one episode
 PACKET_SIZE = (int(1e3), int(1e6))
 CQI_REPORT_INTERVAL = 0.02
