@@ -8,8 +8,9 @@ from dqn import *
 
 import matplotlib.pyplot as plt
 
-env = Airview(episode_length=10, ue_arrival_rate=0.1)
+TEST_TIME = 5
 
+env = Airview(episode_length=10, ue_arrival_rate=0.1)
 state_dim = env.observation_space.shape[1]
 action_dim = 29
 
@@ -221,10 +222,16 @@ model = ActorCritic(5,29)
 # model = DQN(5,29)
 # model = Policy()
 opt = torch.optim.Adam(model.parameters())
-replay = ReplayBuffer(1000)
-average_rewards, success_rate = trainAC(env,model,opt,replay=replay)
+replay = ReplayBuffer(10000)
 
-plt.plot(average_rewards[5000:])
+avg_rewards = []
+for i in range(TEST_TIME):
+    average_rewards, success_rate = trainAC(env,model,opt,replay=replay,max_frames=100000)
+    avg_rewards.append(average_rewards)
+
+plt.figure()
+for average_rewards in avg_rewards:
+    plt.plot(average_rewards[5000:])
 plt.title("Actor_critic",fontsize=15)
 plt.xlabel("Steps",fontsize=10)
 plt.ylabel("Average_rewards",fontsize=10)
