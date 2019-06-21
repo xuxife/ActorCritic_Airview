@@ -98,11 +98,10 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
             frame_idx += 1
             value = model(state)
             if np.random.uniform() < epsilon:
-                action = value.argmax(dim=1)
+                action = value.argmax(dim=-1)
                 
             else:
-                # action = torch.randint(0,value.shape[1],(value.shape[0],1)) #TODO
-                action = value.argmax(dim=1)
+                action = torch.randint(1,value.shape[1],(value.shape[0],)) #TO-TEST
 
             next_state, reward, done, info = env.step(action)
             next_state = torch.FloatTensor(next_state)
@@ -116,7 +115,7 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
                 pass # TODO
 
             state = next_state
-            if frame_idx % 3000 == 0:
+            if frame_idx % 1000 == 0:
                 print(average_rewards[-1])
                 # plt.clf()
                 # plt.plot(average_rewards[3000:])
