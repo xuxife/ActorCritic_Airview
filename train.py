@@ -218,14 +218,14 @@ def replay_loss(model, optimizer, state, action, reward, done, next_state):
 
 # train experiment
 env = Airview(ue_arrival_rate=0.05)
-model = ActorCritic(5,29)
-# model = DQN(5,29)
+# model = ActorCritic(5,29)
+model = DQN(5,29)
 opt = torch.optim.Adam(model.parameters())
 replay = ReplayBuffer(1000)
 
 avg_rewards = []
 for i in range(1):
-    average_rewards, success_rate = trainAC(env,model,opt,replay=replay,max_frames=200000,replay_size=128)
+    average_rewards, success_rate = trainDQN(env,model,opt,replay=replay,max_frames=200000,replay_size=128)
     avg_rewards.append(average_rewards)
 
 plt.figure()
@@ -251,7 +251,7 @@ plt.show()
 
 # for alter in alters:
 #     print(f"alter:{alter}")
-#     average_rewards, _ = baseline(env,model,max_frames=200000,alter=alter)
+#     average_rewards, _ = baseline(env,model,max_frames=200000,alter=10)
 #     avg_rewards.append(average_rewards)
 
 # plt.figure()
