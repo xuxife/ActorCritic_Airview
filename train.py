@@ -2,6 +2,7 @@ import torch
 import torch.optim as optim
 from torch.distributions import Categorical
 
+
 from simulator import *
 from actor_critic import *
 from dqn import *
@@ -132,14 +133,13 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
                 batch_state = batch[0]
                 batch_action = batch[1]
                 batch_reward = torch.FloatTensor(np.vstack(batch[2]))
-                batch_value = [model(s) for s in batch_state]
-                batch_eval = [torch.sum(v.gather(1,a.unsqueeze(dim=1))) \
-                                 for v,a in zip(batch_value,batch_action)]
-                batch_eval = torch.tensor(batch_eval).unsqueeze(dim=1) 
-
                 loss_func = nn.MSELoss()
-                loss = loss_func(batch_eval,batch_reward)
-                loss.requires_grad = True
+                loss = 0
+
+                for state, action,reward in zip(batch_state,batch_action,batch_reward):
+                    value = model(state)
+                    eval_ = torch.sum(value.gather(1,action.unsqueeze(dim=1)))
+                    loss += torch.abs(eval_-reward)**2
 
                 optimizer.zero_grad()
                 loss.backward()
