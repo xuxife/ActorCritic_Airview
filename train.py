@@ -98,10 +98,11 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
             frame_idx += 1
             value = model(state)
             if np.random.uniform() < epsilon:
-                action = value.argmax().unsqueeze(0)
+                action = value.argmax(dim=1)
                 
             else:
-                action = torch.randint(0,value.shape[1],(1,))
+                # action = torch.randint(0,value.shape[1],(value.shape[0],1)) #TODO
+                action = value.argmax(dim=1)
 
             next_state, reward, done, info = env.step(action)
             next_state = torch.FloatTensor(next_state)
@@ -115,11 +116,11 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
                 pass # TODO
 
             state = next_state
-            if frame_idx % 1000 == 0:
+            if frame_idx % 3000 == 0:
                 print(average_rewards[-1])
-                plt.clf()
-                plt.plot(average_rewards)
-                plt.pause(1.5) # for plotting the figure
+                # plt.clf()
+                # plt.plot(average_rewards[3000:])
+                # plt.pause(1.5) # for plotting the figure
 
             if frame_idx % 10000 == 0 and frame_idx > 30000:
                 print('saving model')
@@ -127,24 +128,24 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
 
         if replay is not None:
             if len(replay) == replay.capacity:
-            # if len(replay) > replay_size:
-                try:
-                    batch = list(replay.sample(replay_size))
-                    batch_state = torch.cat(batch[0]).view(replay_size,5) 
-                    batch_action = torch.LongTensor(batch[1]).unsqueeze(dim=1)
-                    batch_reward = torch.FloatTensor(batch[2])
+                batch = list(replay.sample(replay_size))
 
-                    q_eval = model(batch_state).gather(1,batch_action)
-                    loss_func = nn.MSELoss()
-                    loss = loss_func(q_eval,batch_reward)
+                batch_state = batch[0]
+                batch_action = batch[1]
+                batch_reward = torch.FloatTensor(np.vstack(batch[2]))
+                batch_value = [model(s) for s in batch_state]
+                batch_eval = [torch.sum(v.gather(1,a.unsqueeze(dim=1))) \
+                                 for v,a in zip(batch_value,batch_action)]
+                batch_eval = torch.tensor(batch_eval).unsqueeze(dim=1) 
 
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+                loss_func = nn.MSELoss()
+                loss = loss_func(batch_eval,batch_reward)
+                loss.requires_grad = True
 
-                except Exception as e:
-                    print(e) # reshape bug for batch state to be fixed
-                    pass
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
 
             else:
                 continue
@@ -218,27 +219,25 @@ def replay_loss(model, optimizer, state, action, reward, done, next_state):
 
 # train experiment
 env = Airview(ue_arrival_rate=0.05)
-model = ActorCritic(5,29)
-# model = DQN(5,29)
+# model = ActorCritic(5,29)
+model = DQN(5,29)
 # model = Policy()
 opt = torch.optim.Adam(model.parameters())
-replay = ReplayBuffer(10000)
+replay = ReplayBuffer(1000)
 
 avg_rewards = []
 for i in range(TEST_TIME):
-    average_rewards, success_rate = trainAC(env,model,opt,replay=replay,max_frames=100000)
+    average_rewards, success_rate = trainDQN(env,model,opt,replay=replay,max_frames=200000,replay_size=128)
     avg_rewards.append(average_rewards)
 
 plt.figure()
 for average_rewards in avg_rewards:
     plt.plot(average_rewards[5000:])
-plt.title("Actor_critic",fontsize=15)
+plt.title("DQN",fontsize=15)
 plt.xlabel("Steps",fontsize=10)
 plt.ylabel("Average_rewards",fontsize=10)
-plt.savefig("AC_performance.png")
-
-
-torch.save(model.state_dict(),"AC.pt")
+plt.savefig("DQN_performance.png")
+plt.show()
 
 
 
@@ -248,11 +247,12 @@ torch.save(model.state_dict(),"AC.pt")
 
 
 # ----------   experiment on baseline    --------------------
-# alters = [-1,1,0,-2,2,+3,-3]
+# alters = list(range(-3,4))
 # avg_rewards = []
 
 # for alter in alters:
-#     average_rewards, _ = baseline(env,model,max_frames=200000,alter=-1)
+#     print(f"alter:{alter}")
+#     average_rewards, _ = baseline(env,model,max_frames=50000,alter=alter)
 #     avg_rewards.append(average_rewards)
 
 # plt.figure()

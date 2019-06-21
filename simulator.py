@@ -59,7 +59,7 @@ class UE:
     state_dim = len(state_var['scalar']) + RBG_NUM * len(state_var['vector'])
     attr_range = {
         'buffer': (int(1e3), int(1e6)),
-        'rsrp': (-120, -90),
+        'rsrp': (-120, -89),
         'avg_snr': (1, 31),
         'avg_thp': (0, BANDWIDTH * 0.9 * TTI * np.log2(1+29**2)),
         'avg_cqi': (1, 29),
@@ -195,7 +195,7 @@ class Airview(gym.Env):
                 action[i] represents the MCS level of RBG[i]
 
         Returns:
-            state (np.array): state.shape == (RBG_NUM, UE.state_dim)
+            state (np.array): state.shape == (ue_num, UE.state_dim)
             reward (float): reward returned after taking the action
             done (bool): whether the episode has ended
             info (dict): extra informaction
@@ -277,7 +277,7 @@ class Airview(gym.Env):
         for ue in ues:
             dt = self.sim_time - ue.arrive
             if np.isclose(dt % self.cqi_report_interval, 0.0) or np.isclose(dt, self.cqi_report_interval):
-                ue.cqi = ue.avg_snr + np.random.randint(-2, 2, size=RBG_NUM)
+                ue.cqi = ue.avg_snr + np.random.randint(-2, 3, size=RBG_NUM)
                 np.clip(ue.cqi, *ue.attr_range['cqi'], out=ue.cqi)
                 logging.debug(f"{self.sim_time}: cqi reported for {ue}")
             np.copyto(ue.mcs, ue.cqi)
@@ -320,13 +320,13 @@ class Airview(gym.Env):
 
     def _is_ack(self, ue, sched_mcs):
         " whether the ue successfully sends the package in the given sched_mcs "
-        is_ack = ue.avg_snr + np.random.randint(-2, 2) - sched_mcs
+        is_ack = ue.avg_snr + np.random.randint(-2, 3) - sched_mcs
         if is_ack > 0:
             is_ack = 1
         elif is_ack < 0:
             is_ack = 0
         else:
-            is_ack = np.random.randint(0, 1)
+            is_ack = np.random.randint(0,2)
         return is_ack
 
 
@@ -334,7 +334,8 @@ class Policy:
     " default policy (taking floor after mean) "
 
     def decide(self, ues):
-        return np.array([np.floor(np.sum(ue.mcs*ue.sched_rbg)/ue.sched_rbg.sum()) for ue in ues])
+        # return np.array([np.floor(np.sum(ue.mcs*ue.sched_rbg)/ue.sched_rbg.sum()) for ue in ues])
+        return np.array([ue.avg_snr for ue in ues])
 
     def learn(self, *args):
         pass
