@@ -218,24 +218,23 @@ def replay_loss(model, optimizer, state, action, reward, done, next_state):
 
 # train experiment
 env = Airview(ue_arrival_rate=0.05)
-# model = ActorCritic(5,29)
-model = DQN(5,29)
-# model = Policy()
+model = ActorCritic(5,29)
+# model = DQN(5,29)
 opt = torch.optim.Adam(model.parameters())
 replay = ReplayBuffer(1000)
 
 avg_rewards = []
-for i in range(TEST_TIME):
-    average_rewards, success_rate = trainDQN(env,model,opt,replay=replay,max_frames=200000,replay_size=128)
+for i in range(1):
+    average_rewards, success_rate = trainAC(env,model,opt,replay=replay,max_frames=200000,replay_size=128)
     avg_rewards.append(average_rewards)
 
 plt.figure()
 for average_rewards in avg_rewards:
     plt.plot(average_rewards[5000:])
-plt.title("DQN",fontsize=15)
+plt.title("Actor Critic",fontsize=15)
 plt.xlabel("Steps",fontsize=10)
 plt.ylabel("Average_rewards",fontsize=10)
-plt.savefig("DQN_performance.png")
+plt.savefig("AC_performance.png")
 plt.show()
 
 
@@ -248,10 +247,11 @@ plt.show()
 # ----------   experiment on baseline    --------------------
 # alters = list(range(-3,4))
 # avg_rewards = []
+# model = Policy()
 
 # for alter in alters:
 #     print(f"alter:{alter}")
-#     average_rewards, _ = baseline(env,model,max_frames=50000,alter=alter)
+#     average_rewards, _ = baseline(env,model,max_frames=200000,alter=alter)
 #     avg_rewards.append(average_rewards)
 
 # plt.figure()
