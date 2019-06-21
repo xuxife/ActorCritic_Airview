@@ -60,7 +60,7 @@ class UE:
     attr_range = {
         'buffer': (int(1e3), int(1e6)),
         'rsrp': (-120, -89),
-        'avg_snr': (1, 31),
+        'avg_snr': (1, 32),
         'avg_thp': (0, BANDWIDTH * 0.9 * TTI * np.log2(1+29**2)),
         'avg_cqi': (1, 29),
         'sched_rbg_num': (0, RBG_NUM),
@@ -276,12 +276,13 @@ class Airview(gym.Env):
         " for every ue, update rbg_cqi per 'sqi_report_interval' "
         for ue in ues:
             dt = self.sim_time - ue.arrive
-            if np.isclose(dt % self.cqi_report_interval, 0.0) or np.isclose(dt, self.cqi_report_interval):
-                ue.cqi = ue.avg_snr + np.random.randint(-2, 3, size=RBG_NUM)
-                np.clip(ue.cqi, *ue.attr_range['cqi'], out=ue.cqi)
-                logging.debug(f"{self.sim_time}: cqi reported for {ue}")
+            # if np.isclose(dt % self.cqi_report_interval, 0.0) or np.isclose(dt, self.cqi_report_interval):
+            ue.cqi = ue.avg_snr + np.random.randint(-2, 3, size=RBG_NUM)
+            np.clip(ue.cqi, *ue.attr_range['cqi'], out=ue.cqi)
+            logging.debug(f"{self.sim_time}: cqi reported for {ue}")
+
             np.copyto(ue.mcs, ue.cqi)
-            ue.mcs[np.isnan(ue.mcs)] = DEFAULT_MCS  # set default mcs
+            # ue.mcs[np.isnan(ue.mcs)] = DEFAULT_MCS  # set default mcs
             np.log2(1 + ue.mcs**2.0, out=ue.se)
             ue.prior = ue.se / max(1, ue.avg_thp/PRIOR_THRESHOLD)
         return ues

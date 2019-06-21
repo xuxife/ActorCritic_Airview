@@ -136,7 +136,7 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
                 loss_func = nn.MSELoss()
                 loss = 0
 
-                for state, action,reward in zip(batch_state,batch_action,batch_reward):
+                for state, action, reward in zip(batch_state,batch_action,batch_reward):
                     value = model(state)
                     eval_ = torch.sum(value.gather(1,action.unsqueeze(dim=1)))
                     loss += torch.abs(eval_-reward)**2
@@ -165,7 +165,7 @@ def baseline(env, policy, max_frames=10000, alter=0):
     state = env.reset()
     while frame_idx < max_frames:
         action = policy.decide(env.sched_ue_count.keys())
-        next_state, reward, done, info = env.step(action+alter)
+        next_state, reward, done, info = env.step(np.clip(action+alter,1,29))
         total_reward += reward
         total_deliver += info['total']
         success_rate.append(total_reward/total_deliver)
@@ -251,7 +251,7 @@ plt.show()
 
 # for alter in alters:
 #     print(f"alter:{alter}")
-#     average_rewards, _ = baseline(env,model,max_frames=200000,alter=10)
+#     average_rewards, _ = baseline(env,model,max_frames=200000,alter=alter)
 #     avg_rewards.append(average_rewards)
 
 # plt.figure()
@@ -261,6 +261,6 @@ plt.show()
 
 # plt.xlabel('step')
 # plt.ylabel('average reward')
-# plt.title('baseline')
+# plt.title('SNR')
 # plt.legend(loc='best')
 # plt.show()
