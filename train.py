@@ -8,20 +8,15 @@ from actor_critic import *
 from dqn import *
 
 import matplotlib.pyplot as plt
+from concurrent import futures
 
-TEST_TIME = 5
 
-env = Airview(episode_length=10, ue_arrival_rate=0.1)
-state_dim = env.observation_space.shape[1]
-action_dim = 29
-
-model = ActorCritic(state_dim, action_dim, {
-                    'share': [128, ], 'critic': [32, ], 'actor': [64, ]})
-model = DQN(state_dim, action_dim, [128, 64])
+# model = ActorCritic(state_dim, action_dim, {
+#                     'share': [128, ], 'critic': [32, ], 'actor': [64, ]})
 # with open("model.pkl", 'rb') as f:
 # model = torch.load(f)
-optimizer = optim.Adam(model.parameters())
-buffer = ReplayBuffer(10000)
+# optimizer = optim.Adam(model.parameters())
+# buffer = ReplayBuffer(10000)
 
 
 def trainAC(env, model, optimizer, max_frames=50000, num_steps=5, replay=None, replay_size=20):
@@ -118,9 +113,6 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
             state = next_state
             if frame_idx % 1000 == 0:
                 print(average_rewards[-1])
-                # plt.clf()
-                # plt.plot(average_rewards[3000:])
-                # plt.pause(1.5) # for plotting the figure
 
             if frame_idx % 10000 == 0 and frame_idx > 30000:
                 print('saving model')
@@ -216,28 +208,70 @@ def replay_loss(model, optimizer, state, action, reward, done, next_state):
         critic_loss += advantage.pow(2).mean()
     return actor_loss, critic_loss, entropy
 
+def plot_fig(rewards, title, start_step=5000, save=False):
+    plt.figure()
+    for i,average_rewards in enumerate(rewards):
+        plt.plot(average_rewards[start_step:],label=f"{i}th run")
+    plt.title(title,fontsize=15)
+    plt.xlabel("Steps",fontsize=10)
+    plt.ylabel("Average_rewards",fontsize=10)
+    plt.legend(loc="best")
+    plt.show()
+    if save: plt.savefig(f"{title}.png")
+
+
+def run_model(train_fun,inputs,test_time=1):
+    """
+    use multi-threading to run train_fun, given inputs
+    Args:
+        train_fun: the training function. i.e. trainDQN/trainAC/random_test etc.
+        inputs: list(args of train_fun)
+                
+        test_time: repeat time of testing
+
+    Returns:
+        the return value of the train_fun of test_time
+        eg.
+            [[test1_input_1,test1_input_2],[test2_input_1,test2_input_2]]
+            where test1_input_1 is the output of train_fun given input1 at the first test time
+
+    Examples:
+        inputs = [(env1,model1,opt1), (env2,model2,opt2),...]
+        outputs = run_model(trainAC,inputs,test_time=2)
+    """
+    outputs = []
+    for i in range(test_time):
+        one_time_output = []
+        with futures.ThreadPoolExecutor() as executor:
+            future_list = []
+            for input_ in inputs:
+                future = executor.submit(train_fun,*input_)
+                future_list.append(future)
+                
+            for future in futures.as_completed(future_list):
+                one_time_output.append(future.result())
+        outputs.append(one_time_output)
+    return outputs
+
+
 # train experiment
-env = Airview(ue_arrival_rate=0.05)
-# model = ActorCritic(5,29)
-model = DQN(5,29)
+env = Airview(episode_length=10, ue_arrival_rate=0.05)
+state_dim = env.observation_space.shape[1]
+action_dim = 29
+test_time = 2
+thread_count = 3
+net_hidden = [126,64,32,16]
+
+model = ActorCritic(state_dim,action_dim)
 opt = torch.optim.Adam(model.parameters())
 replay = ReplayBuffer(1000)
+max_frames = 2000
 
-avg_rewards = []
-for i in range(1):
-    average_rewards, success_rate = trainDQN(env,model,opt,replay=replay,max_frames=200000,replay_size=128)
-    avg_rewards.append(average_rewards)
+inputs = [(env,model,opt,max_frames),]
 
-plt.figure()
-for average_rewards in avg_rewards:
-    plt.plot(average_rewards[5000:])
-plt.title("Actor Critic",fontsize=15)
-plt.xlabel("Steps",fontsize=10)
-plt.ylabel("Average_rewards",fontsize=10)
-plt.savefig("AC_performance.png")
-plt.show()
-
-
+outputs = run_model(trainAC,inputs,test_time=2)
+avg_rewards = list(zip(*outputs))[0]
+plot_fig(avg_rewards,"AC",save=True)
 
 
 
