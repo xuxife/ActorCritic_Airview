@@ -220,38 +220,40 @@ def plot_fig(rewards, title, start_step=5000, save=False):
     if save: plt.savefig(f"{title}.png")
 
 
-def run_model(train_fun,inputs,test_time=1):
+def run_model(train_fun,inputs):
     """
     use multi-threading to run train_fun, given inputs
     Args:
         train_fun: the training function. i.e. trainDQN/trainAC/random_test etc.
         inputs: list(args of train_fun)
-                
-        test_time: repeat time of testing
 
     Returns:
-        the return value of the train_fun of test_time
         eg.
-            [[test1_input_1,test1_input_2],[test2_input_1,test2_input_2]]
-            where test1_input_1 is the output of train_fun given input1 at the first test time
+            rewards(list(rewards)): model rewards of different inputs
+            success_rates(list(success_rates)): model success_rates of different inputs
+            
+            the return format of rewards and sucess_rate are as follows:
+            [inputs1,inputs2,...]
 
     Examples:
         inputs = [(env1,model1,opt1), (env2,model2,opt2),...]
-        outputs = run_model(trainAC,inputs,test_time=2)
+        rewards, sucess_rate = run_model(trainAC,inputs,test_time=2)
+        plot_fig(rewards) 
     """
-    outputs = []
-    for i in range(test_time):
-        one_time_output = []
-        with futures.ThreadPoolExecutor() as executor:
-            future_list = []
-            for input_ in inputs:
-                future = executor.submit(train_fun,*input_)
-                future_list.append(future)
-                
-            for future in futures.as_completed(future_list):
-                one_time_output.append(future.result())
-        outputs.append(one_time_output)
-    return outputs
+    rewards = []
+    success_rates = []
+
+    with futures.ThreadPoolExecutor() as executor:
+        future_list = []
+        for input_ in inputs:
+            future = executor.submit(train_fun,*input_)
+            future_list.append(future)
+            
+        for future in futures.as_completed(future_list):
+            rewards.append(future.result()[0])
+            success_rates.append(future.result()[1])
+
+    return rewards, success_rates
 
 
 # train experiment
@@ -259,19 +261,18 @@ env = Airview(episode_length=10, ue_arrival_rate=0.05)
 state_dim = env.observation_space.shape[1]
 action_dim = 29
 test_time = 2
-thread_count = 3
 net_hidden = [126,64,32,16]
 
-model = ActorCritic(state_dim,action_dim)
+model = DQN(state_dim,action_dim)
 opt = torch.optim.Adam(model.parameters())
 replay = ReplayBuffer(1000)
-max_frames = 2000
+max_frames = 500000
 
 inputs = [(env,model,opt,max_frames),]
 
-outputs = run_model(trainAC,inputs,test_time=2)
-avg_rewards = list(zip(*outputs))[0]
-plot_fig(avg_rewards,"AC",save=True)
+for i in range(5):
+    rewards,success_rate = run_model(trainDQN,inputs)
+    plot_fig(rewards,"DQN"+str(i),start_step=5000,save=True)
 
 
 
