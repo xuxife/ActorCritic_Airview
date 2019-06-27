@@ -11,13 +11,6 @@ import matplotlib.pyplot as plt
 from concurrent import futures
 
 
-# model = ActorCritic(state_dim, action_dim, {
-#                     'share': [128, ], 'critic': [32, ], 'actor': [64, ]})
-# with open("model.pkl", 'rb') as f:
-# model = torch.load(f)
-# optimizer = optim.Adam(model.parameters())
-# buffer = ReplayBuffer(10000)
-
 
 def trainAC(env, model, optimizer, max_frames=50000, num_steps=5, replay=None, replay_size=20):
     frame_idx = 0
@@ -59,12 +52,12 @@ def trainAC(env, model, optimizer, max_frames=50000, num_steps=5, replay=None, r
 
             state = next_state
             if frame_idx % 1000 == 0:
-                print(average_rewards[-1])
+                print("%.2f" % average_rewards[-1])
 
         if replay is not None:
             if len(replay) > replay_size:
-                actor_loss, critic_loss, entropy = replay_loss(
-                    model, optimizer, *replay.sample(replay_size))
+                actor_loss, critic_loss, entropy = replay_loss_AC(
+                    model, *replay.sample(replay_size))
             else:
                 continue
 
@@ -97,7 +90,7 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
                 action = value.argmax(dim=-1)
                 
             else:
-                action = torch.randint(1,value.shape[1],(value.shape[0],)) #TO-TEST
+                action = torch.randint(1,value.shape[1],(value.shape[0],)) 
 
             next_state, reward, done, info = env.step(action)
             next_state = torch.FloatTensor(next_state)
@@ -112,7 +105,7 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
 
             state = next_state
             if frame_idx % 1000 == 0:
-                print(average_rewards[-1])
+                print("%.2f" % average_rewards[-1])
 
             if frame_idx % 10000 == 0 and frame_idx > 30000:
                 print('saving model')
@@ -120,27 +113,13 @@ def trainDQN(env, model, optimizer, max_frames=50000, num_steps=5, epsilon=0.9, 
 
         if replay is not None:
             if len(replay) == replay.capacity:
-                batch = list(replay.sample(replay_size))
-
-                batch_state = batch[0]
-                batch_action = batch[1]
-                batch_reward = torch.FloatTensor(np.vstack(batch[2]))
-                loss_func = nn.MSELoss()
-                loss = 0
-
-                for state, action, reward in zip(batch_state,batch_action,batch_reward):
-                    value = model(state)
-                    eval_ = torch.sum(value.gather(1,action.unsqueeze(dim=1)))
-                    loss += torch.abs(eval_-reward)**2
-
+                loss = replay_loss_DQN(model, *replay.sample(replay_size))
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
-
             else:
                 continue
-
 
         if done:
             state = env.reset()
@@ -164,7 +143,7 @@ def baseline(env, policy, max_frames=10000, alter=0):
         frame_idx += 1
         average_rewards.append(total_reward/frame_idx)
         if frame_idx % 1000 == 0:
-            print(average_rewards[-1])
+            print("%.2f" % average_rewards[-1])
         if done:
             env.reset()
     return average_rewards, success_rate
@@ -188,13 +167,13 @@ def random_test(env, max_frames=10000):
         frame_idx += 1
         average_rewards.append(total_reward/frame_idx)
         if frame_idx % 1000 == 0:
-            print(average_rewards[-1])
+            print("%.2f" % average_rewards[-1])
         if done:
             env.reset()
     return average_rewards, success_rate
 
 
-def replay_loss(model, optimizer, state, action, reward, done, next_state):
+def replay_loss_AC(model, state, action, reward, done, next_state):
     actor_loss = 0
     critic_loss = 0
     entropy = 0
@@ -207,6 +186,19 @@ def replay_loss(model, optimizer, state, action, reward, done, next_state):
         actor_loss += -(log_prob*advantage.detach()).mean()
         critic_loss += advantage.pow(2).mean()
     return actor_loss, critic_loss, entropy
+
+
+def replay_loss_DQN(model, batch_state, batch_action, batch_reward, batch_done, batch_next_state):
+    loss = 0
+    batch_reward = torch.FloatTensor(np.vstack(batch_reward))
+
+    for state, action, reward in zip(batch_state,batch_action,batch_reward):
+        value = model(state)
+        eval_ = torch.sum(value.gather(1,action.unsqueeze(dim=1)))
+        loss += (eval_-reward)**2
+
+    return loss
+
 
 def plot_fig(rewards, title, start_step=5000, save=False):
     plt.figure()
@@ -237,13 +229,13 @@ def run_model(train_fun,inputs):
 
     Examples:
         inputs = [(env1,model1,opt1), (env2,model2,opt2),...]
-        rewards, sucess_rate = run_model(trainAC,inputs,test_time=2)
+        rewards, sucess_rate = run_model(trainAC,inputs)
         plot_fig(rewards) 
     """
     rewards = []
     success_rates = []
 
-    with futures.ThreadPoolExecutor() as executor:
+    with futures.ThreadPoolExecutor(max_workers=30) as executor:
         future_list = []
         for input_ in inputs:
             future = executor.submit(train_fun,*input_)
@@ -260,21 +252,65 @@ def run_model(train_fun,inputs):
 env = Airview(episode_length=10, ue_arrival_rate=0.05)
 state_dim = env.observation_space.shape[1]
 action_dim = 29
-test_time = 2
 net_hidden = [126,64,32,16]
 
+
+max_frames = 500000
+num_steps = 5
+epsilon = 0.9
+replay_size = 20
+
+default_para = (max_frames,num_steps,epsilon,replay,replay_size)
+
+inputs = []
+all_rewards = []
+
+# DQN
 model = DQN(state_dim,action_dim)
 opt = torch.optim.Adam(model.parameters())
+env = Airview(episode_length=10, ue_arrival_rate=0.05)
 replay = ReplayBuffer(1000)
-max_frames = 500000
+inputs = [(env,model,opt,*default_para)]
+rewards,success_rate = run_model(trainDQN,inputs)
+all_rewards.append(rewards[0])
 
-inputs = [(env,model,opt,max_frames),]
+# AC
+model = ActorCritic(state_dim,action_dim)
+opt = torch.optim.Adam(model.parameters())
+env = Airview(episode_length=10, ue_arrival_rate=0.05)
+replay = ReplayBuffer(1000)
+inputs = [(env,model,opt,max_frames,num_steps,replay,replay_size)]
+rewards,success_rate = run_model(trainAC,inputs)
+all_rewards.append(rewards[0])
 
-for i in range(5):
-    rewards,success_rate = run_model(trainDQN,inputs)
-    plot_fig(rewards,"DQN"+str(i),start_step=5000,save=True)
+# AVG
+model = Policy(mode="avg")
+env = Airview(episode_length=10, ue_arrival_rate=0.05)
+rewards,success_rate = baseline(env,model,max_frames=max_frames)
+all_rewards.append(rewards)
+
+# AVG-3
+model = Policy(mode="avg")
+env = Airview(episode_length=10, ue_arrival_rate=0.05)
+rewards,success_rate = baseline(env,model,max_frames=max_frames,alter=-3)
+all_rewards.append(rewards)
+
+# SNR-3
+model = Policy(mode="snr")
+env = Airview(episode_length=10, ue_arrival_rate=0.05)
+rewards,success_rate = baseline(env,model,max_frames=max_frames,alter=-3)
+all_rewards.append(rewards)
 
 
+model_names = ["DQN","AC","AVG","AVG-3","SNR-3"]
+plt.figure()
+for rewards, name in zip(all_rewards,model_names):
+    plt.plot(rewards[5000:],label=name)
+plt.xlabel('step')
+plt.ylabel('average reward')
+plt.legend(loc='best')
+plt.savefig("All_Comparation.png")
+plt.show()
 
 
 

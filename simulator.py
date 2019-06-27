@@ -334,9 +334,14 @@ class Airview(gym.Env):
 class Policy:
     " default policy (taking floor after mean) "
 
+    def __init__(self, mode="avg"):
+        self.mode = mode
+
     def decide(self, ues):
-        return np.array([np.floor(np.sum(ue.mcs*ue.sched_rbg)/ue.sched_rbg.sum()) for ue in ues])
-        # return np.array([ue.avg_snr for ue in ues])
+        if self.mode == "avg":
+            return np.array([np.floor(np.sum(ue.mcs*ue.sched_rbg)/ue.sched_rbg.sum()) for ue in ues])
+        assert self.mode == "snr"
+        return np.array([ue.avg_snr for ue in ues])
 
     def learn(self, *args):
         pass
