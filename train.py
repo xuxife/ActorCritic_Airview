@@ -9,6 +9,7 @@ from dqn import *
 
 import matplotlib.pyplot as plt
 from concurrent import futures
+import time
 
 
 
@@ -247,70 +248,73 @@ def run_model(train_fun,inputs):
 
     return rewards, success_rates
 
-
+time.sleep(2000)
 # train experiment
-env = Airview(episode_length=10, ue_arrival_rate=0.05)
-state_dim = env.observation_space.shape[1]
-action_dim = 29
-net_hidden = [126,64,32,16]
+for i in range(20):
+    env = Airview(episode_length=10, ue_arrival_rate=0.05)
+    state_dim = env.observation_space.shape[1]
+    action_dim = 29
+    net_hidden = [126,64,32,16]
 
 
-max_frames = 500000
-num_steps = 5
-epsilon = 0.9
-replay_size = 20
+    max_frames = 500000
+    num_steps = 5
+    epsilon = 0.9
+    replay_size = 20
+    replay_buffer_size = 2000
+    replay = ReplayBuffer(replay_buffer_size)
 
-default_para = (max_frames,num_steps,epsilon,replay,replay_size)
+    default_para = (max_frames,num_steps,epsilon,replay,replay_size)
 
-inputs = []
-all_rewards = []
+    inputs = []
+    all_rewards = []
 
-# DQN
-model = DQN(state_dim,action_dim)
-opt = torch.optim.Adam(model.parameters())
-env = Airview(episode_length=10, ue_arrival_rate=0.05)
-replay = ReplayBuffer(1000)
-inputs = [(env,model,opt,*default_para)]
-rewards,success_rate = run_model(trainDQN,inputs)
-all_rewards.append(rewards[0])
+    # DQN
+    model = DQN(state_dim,action_dim)
+    opt = torch.optim.Adam(model.parameters())
+    env = Airview(episode_length=10, ue_arrival_rate=0.05)
+    replay = ReplayBuffer(replay_buffer_size)
+    inputs = [(env,model,opt,*default_para)]
+    rewards,success_rate = run_model(trainDQN,inputs)
+    all_rewards.append(rewards[0])
 
-# AC
-model = ActorCritic(state_dim,action_dim)
-opt = torch.optim.Adam(model.parameters())
-env = Airview(episode_length=10, ue_arrival_rate=0.05)
-replay = ReplayBuffer(1000)
-inputs = [(env,model,opt,max_frames,num_steps,replay,replay_size)]
-rewards,success_rate = run_model(trainAC,inputs)
-all_rewards.append(rewards[0])
+    # AC
+    model = ActorCritic(state_dim,action_dim)
+    opt = torch.optim.Adam(model.parameters())
+    env = Airview(episode_length=10, ue_arrival_rate=0.05)
+    replay = ReplayBuffer(replay_buffer_size)
+    inputs = [(env,model,opt,max_frames,num_steps,replay,replay_size)]
+    rewards,success_rate = run_model(trainAC,inputs)
+    all_rewards.append(rewards[0])
 
-# AVG
-model = Policy(mode="avg")
-env = Airview(episode_length=10, ue_arrival_rate=0.05)
-rewards,success_rate = baseline(env,model,max_frames=max_frames)
-all_rewards.append(rewards)
+    # AVG
+    model = Policy(mode="avg")
+    env = Airview(episode_length=10, ue_arrival_rate=0.05)
+    rewards,success_rate = baseline(env,model,max_frames=max_frames)
+    all_rewards.append(rewards)
 
-# AVG-3
-model = Policy(mode="avg")
-env = Airview(episode_length=10, ue_arrival_rate=0.05)
-rewards,success_rate = baseline(env,model,max_frames=max_frames,alter=-3)
-all_rewards.append(rewards)
+    # AVG-3
+    model = Policy(mode="avg")
+    env = Airview(episode_length=10, ue_arrival_rate=0.05)
+    rewards,success_rate = baseline(env,model,max_frames=max_frames,alter=-3)
+    all_rewards.append(rewards)
 
-# SNR-3
-model = Policy(mode="snr")
-env = Airview(episode_length=10, ue_arrival_rate=0.05)
-rewards,success_rate = baseline(env,model,max_frames=max_frames,alter=-3)
-all_rewards.append(rewards)
+    # SNR-3
+    model = Policy(mode="snr")
+    env = Airview(episode_length=10, ue_arrival_rate=0.05)
+    rewards,success_rate = baseline(env,model,max_frames=max_frames,alter=-3)
+    all_rewards.append(rewards)
 
 
-model_names = ["DQN","AC","AVG","AVG-3","SNR-3"]
-plt.figure()
-for rewards, name in zip(all_rewards,model_names):
-    plt.plot(rewards[5000:],label=name)
-plt.xlabel('step')
-plt.ylabel('average reward')
-plt.legend(loc='best')
-plt.savefig("All_Comparation.png")
-plt.show()
+    model_names = ["DQN","AC","AVG","AVG-3","SNR-3"]
+    plt.figure()
+    for rewards, name in zip(all_rewards,model_names):
+        plt.plot(rewards[5000:],label=name)
+    plt.xlabel('step')
+    plt.ylabel('average reward')
+    plt.legend(loc='best')
+    plt.savefig(f"All_Comparation_{i}.png")
+    plt.show()
 
 
 
