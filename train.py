@@ -201,10 +201,10 @@ def replay_loss_DQN(model, batch_state, batch_action, batch_reward, batch_done, 
     return loss
 
 
-def plot_fig(rewards, title, start_step=5000, save=False):
+def plot_fig(rewards, title, start_step=5000, save=False, labels=None):
     plt.figure()
     for i,average_rewards in enumerate(rewards):
-        plt.plot(average_rewards[start_step:],label=f"{i}th run")
+        plt.plot(average_rewards[start_step:],label=f"{i}th run" if labels is not None else labels[i])
     plt.title(title,fontsize=15)
     plt.xlabel("Steps",fontsize=10)
     plt.ylabel("Average_rewards",fontsize=10)
@@ -248,73 +248,65 @@ def run_model(train_fun,inputs):
 
     return rewards, success_rates
 
-time.sleep(2000)
+
 # train experiment
-for i in range(20):
-    env = Airview(episode_length=10, ue_arrival_rate=0.05)
-    state_dim = env.observation_space.shape[1]
-    action_dim = 29
-    net_hidden = [126,64,32,16]
+env = Airview(episode_length=10, ue_arrival_rate=0.05)
+state_dim = env.observation_space.shape[1]
+action_dim = 29
+net_hidden = [126,64,32,16]
 
 
-    max_frames = 500000
-    num_steps = 5
-    epsilon = 0.9
-    replay_size = 20
-    replay_buffer_size = 2000
-    replay = ReplayBuffer(replay_buffer_size)
+max_frames = 100000
+num_steps = 5
+epsilon = 0.9
+replay_size = 20
+replay_buffer_size = 2000
+replay = ReplayBuffer(replay_buffer_size)
 
-    default_para = (max_frames,num_steps,epsilon,replay,replay_size)
+default_para = (max_frames,num_steps,epsilon,replay,replay_size)
 
-    inputs = []
-    all_rewards = []
+inputs = []
+all_rewards = []
 
-    # DQN
-    model = DQN(state_dim,action_dim)
-    opt = torch.optim.Adam(model.parameters())
-    env = Airview(episode_length=10, ue_arrival_rate=0.05)
-    replay = ReplayBuffer(replay_buffer_size)
-    inputs = [(env,model,opt,*default_para)]
-    rewards,success_rate = run_model(trainDQN,inputs)
-    all_rewards.append(rewards[0])
+# DQN
+model = DQN(state_dim,action_dim)
+opt = torch.optim.Adam(model.parameters())
+env = Airview(episode_length=10, ue_arrival_rate=0.005)
+replay = ReplayBuffer(replay_buffer_size)
+inputs = [(env,model,opt,*default_para)]
+rewards,success_rate = run_model(trainDQN,inputs)
+all_rewards.append(rewards[0])
 
-    # AC
-    model = ActorCritic(state_dim,action_dim)
-    opt = torch.optim.Adam(model.parameters())
-    env = Airview(episode_length=10, ue_arrival_rate=0.05)
-    replay = ReplayBuffer(replay_buffer_size)
-    inputs = [(env,model,opt,max_frames,num_steps,replay,replay_size)]
-    rewards,success_rate = run_model(trainAC,inputs)
-    all_rewards.append(rewards[0])
+# AC
+model = ActorCritic(state_dim,action_dim)
+opt = torch.optim.Adam(model.parameters())
+env = Airview(episode_length=10, ue_arrival_rate=0.005)
+replay = ReplayBuffer(replay_buffer_size)
+inputs = [(env,model,opt,max_frames,num_steps,replay,replay_size)]
+rewards,success_rate = run_model(trainAC,inputs)
+all_rewards.append(rewards[0])
 
-    # AVG
-    model = Policy(mode="avg")
-    env = Airview(episode_length=10, ue_arrival_rate=0.05)
-    rewards,success_rate = baseline(env,model,max_frames=max_frames)
-    all_rewards.append(rewards)
+# AVG
+model = Policy(mode="avg")
+env = Airview(episode_length=10, ue_arrival_rate=0.005)
+rewards,success_rate = baseline(env,model,max_frames=max_frames)
+all_rewards.append(rewards)
 
-    # AVG-3
-    model = Policy(mode="avg")
-    env = Airview(episode_length=10, ue_arrival_rate=0.05)
-    rewards,success_rate = baseline(env,model,max_frames=max_frames,alter=-3)
-    all_rewards.append(rewards)
+# AVG-3
+model = Policy(mode="avg")
+env = Airview(episode_length=10, ue_arrival_rate=0.005)
+rewards,success_rate = baseline(env,model,max_frames=max_frames,alter=-3)
+all_rewards.append(rewards)
 
-    # SNR-3
-    model = Policy(mode="snr")
-    env = Airview(episode_length=10, ue_arrival_rate=0.05)
-    rewards,success_rate = baseline(env,model,max_frames=max_frames,alter=-3)
-    all_rewards.append(rewards)
+# SNR-3
+model = Policy(mode="snr")
+env = Airview(episode_length=10, ue_arrival_rate=0.005)
+rewards,success_rate = baseline(env,model,max_frames=max_frames,alter=-3)
+all_rewards.append(rewards)
 
 
-    model_names = ["DQN","AC","AVG","AVG-3","SNR-3"]
-    plt.figure()
-    for rewards, name in zip(all_rewards,model_names):
-        plt.plot(rewards[5000:],label=name)
-    plt.xlabel('step')
-    plt.ylabel('average reward')
-    plt.legend(loc='best')
-    plt.savefig(f"All_Comparation_{i}.png")
-    plt.show()
+model_names = ["DQN","AC","AVG","AVG-3","SNR-3"]
+plot_fig(rewards,"performance comparison",save=True,labels=model_names)
 
 
 
